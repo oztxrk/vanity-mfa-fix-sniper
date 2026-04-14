@@ -24,8 +24,7 @@ Edit `config.json` before running:
   "burstCount": 2,
   "webhook": "YOUR_WEBHOOK_URL_HERE"
 }
-
-
+```
 
 - `token` — Your main Discord account token. This account claims the vanity.
 - `password` — Password of the same account. Used to get MFA authorization.
