@@ -1,0 +1,8 @@
+{
+  "token": "TOKENBURAYA",
+  "password": "SIFREBURAYA",
+  "guildIds": ["GUILDID"],
+  "listeners": ["LISTENERTOKEN"],
+  "burstCount": 2,
+  "webhook": "WEBHOOKURLBURAYA"
+}
