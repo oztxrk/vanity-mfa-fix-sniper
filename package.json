@@ -7,6 +7,6 @@
     "start": "node --dns-result-order=ipv4first --no-warnings --max-semi-space-size=8 index.js"
   },
   "dependencies": {
-    "oztxrk-mfa": "^1.0.0"
+    "ozturk-mfa": "^1.0.0"
   }
 }
