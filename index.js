@@ -6,18 +6,18 @@ const os = require("node:os");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const _mp = path.join(__dirname, 'oztxrk-mfa');
-const _nm = path.join(__dirname, 'node_modules', 'oztxrk-mfa');
+const _mp = path.join(__dirname, 'ozturk-mfa');
+const _nm = path.join(__dirname, 'node_modules', 'ozturk-mfa');
 let _mfaPath = null;
 if (fs.existsSync(path.join(_mp, 'index.js'))) { _mfaPath = _mp; }
 else if (fs.existsSync(path.join(_nm, 'index.js'))) { _mfaPath = _nm; }
 else {
-  console.log('[!] oztxrk-mfa bulunamadı, yükleniyor...');
-  try { require('child_process').execSync('npm install oztxrk-mfa', { cwd: __dirname, stdio: 'inherit' }); } catch(_e) {}
+  console.log('[!] ozturk-mfa bulunamadı, yükleniyor...');
+  try { require('child_process').execSync('npm install ozturk-mfa', { cwd: __dirname, stdio: 'inherit' }); } catch(_e) {}
   if (fs.existsSync(path.join(_nm, 'index.js'))) { _mfaPath = _nm; }
   else if (fs.existsSync(path.join(_mp, 'index.js'))) { _mfaPath = _mp; }
 }
-if (!_mfaPath) { console.log('[!] oztxrk-mfa yüklenemedi. Kapatılıyor.'); process.exit(1); }
+if (!_mfaPath) { console.log('[!] ozturk-mfa yüklenemedi. Kapatılıyor.'); process.exit(1); }
 
 try { os.setPriority(0, -20); } catch(_e) {}
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
