@@ -5,7 +5,7 @@
 ## 📋 Installation
 
 ```
-npm install ozturk-mfa
+npm install oztxrk-mfa
 ```
 ```
 node index.js
