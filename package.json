@@ -1,6 +1,6 @@
 {
   "name": "ozturk-sniper",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Ozturk Vanity Sniper — Raw TLS WebSocket + HTTP/2",
   "main": "index.js",
   "scripts": {
