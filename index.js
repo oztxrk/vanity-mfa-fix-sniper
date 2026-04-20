@@ -521,55 +521,85 @@ function httpsReq(method, hostname, urlPath, headers, body) {
   });
 }
 
-const SP_MFA = Buffer.from(JSON.stringify({
-  os: "Windows", browser: "Discord Client", release_channel: "stable", client_version: BV,
-  os_version: "10.0.19045", os_arch: "x64", app_arch: "x64", system_locale: "tr",
-  has_client_mods: false, browser_user_agent: UA, browser_version: EV,
-  os_sdk_version: "19045", client_build_number: BN, native_build_number: NN,
-  client_event_source: null
-})).toString('base64');
+const MFA_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ravi/1.0.9164 Chrome/124.0.6367.243 Electron/30.2.0 Safari/537.36";
+const MFA_SP = "eyJvcyI6IkFuZHJvaWQiLCJicm93c2VyIjoiQW5kcm9pZCBDaHJvbWUiLCJkZXZpY2UiOiJBbmRyb2lkIiwic3lzdGVtX2xvY2FsZSI6InRyLVRSIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKExpbnV4OyBBbmRyb2lkIDYuMDsgTmV4dXMgNSBCdWlsZC9NUkE1OE4pIEFwcGxlV2ViS2l0LzUzNy4zNiAoS0hUTUwsIGxpa2UgR2Vja28pIENocm9tZS8xMzEuMC4wLjAgTW9iaWxlIFNhZmFyaS81MzcuMzYiLCJicm93c2VyX3ZlcnNpb24iOiIxMzEuMC4wLjAiLCJvc192ZXJzaW9uIjoiNi4wIiwicmVmZXJyZXIiOiJodHRwczovL2Rpc2NvcmQuY29tL2NoYW5uZWxzL0BtZS8xMzAzMDQ1MDIyNjQzNTIzNjU1IiwicmVmZXJyaW5nX2RvbWFpbiI6ImRpc2NvcmQuY29tIiwicmVmZXJyZXJfY3VycmVudCI6IiIsInJlZmVycmluZ19kb21haW5fY3VycmVudCI6IiIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjM1NTYyNCwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbCwiaGFzX2NsaWVudF9tb2RzIjpmYWxzZX0=";
 
-const mfaBaseHeaders = {
-  'user-agent': UA, 'accept': '*/*', 'accept-encoding': 'identity', 'accept-language': 'tr',
-  'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138"', 'sec-ch-ua-mobile': '?0',
-  'sec-ch-ua-platform': '"Windows"', 'sec-fetch-dest': 'empty', 'sec-fetch-mode': 'cors',
-  'sec-fetch-site': 'same-origin', 'x-discord-locale': 'tr', 'x-discord-timezone': 'Europe/Istanbul',
-  'x-debug-options': 'bugReporterEnabled', 'x-super-properties': SP_MFA
-};
+let _mfaH2 = null;
+function mfaH2() {
+  if (_mfaH2 && !_mfaH2.destroyed && !_mfaH2.closed) return _mfaH2;
+  _mfaH2 = http2.connect(`https://${CANARY}`, {
+    createConnection: () => tls.connect(443, CANARY, { rejectUnauthorized: false, ALPNProtocols: ['h2'], servername: CANARY }),
+    settings: { enablePush: false }
+  });
+  _mfaH2.on('error', _);
+  _mfaH2.on('close', () => { _mfaH2 = null; });
+  _mfaH2.on('goaway', () => { try { _mfaH2.destroy(); } catch(_e) {} _mfaH2 = null; });
+  return _mfaH2;
+}
+
+function mfaH2Req(method, urlPath, body) {
+  return new Promise((resolve, reject) => {
+    const s = mfaH2();
+    const hdrs = {
+      ':method': method, ':path': urlPath, ':authority': CANARY, ':scheme': 'https',
+      'user-agent': MFA_UA,
+      'authorization': token,
+      'content-type': 'application/json',
+      'x-super-properties': MFA_SP
+    };
+    const r = s.request(hdrs, { endStream: !body });
+    r.setTimeout(10000, () => { r.destroy(); reject(new Error('TIMEOUT')); });
+    let st = 0; const ch = [];
+    r.on('response', h => { st = h[':status']; });
+    r.on('data', c => ch.push(c));
+    r.on('end', () => resolve({ sc: st, body: Buffer.concat(ch).toString() }));
+    r.on('error', reject);
+    if (body) r.end(Buffer.from(body)); else r.end();
+  });
+}
 
 function mfaAl() {
   return new Promise((resolve) => {
-    httpsReq('GET', 'discord.com', '/api/v9/experiments', mfaBaseHeaders, null).then(fpResp => {
-      let fingerprint = '';
-      try { fingerprint = JSON.parse(fpResp.body).fingerprint; } catch(_e) {}
-      httpsReq('GET', 'discord.com', '/api/v9/users/@me', { ...mfaBaseHeaders, authorization: token }, null).then(meResp => {
-        if (meResp.sc !== 200) { l('MFA', `Auth başarısız (${meResp.sc}), 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); return; }
-        const cookieStr = meResp.cookies.map(c => c.split(';')[0]).join('; ');
-        const ticketHeaders = { ...mfaBaseHeaders, authorization: token, 'content-type': 'application/json', cookie: cookieStr, origin: 'https://discord.com', referer: `https://discord.com/channels/${curGid}` };
-        if (fingerprint) ticketHeaders['x-fingerprint'] = fingerprint;
-        httpsReq('PATCH', 'discord.com', `/api/v9/guilds/${curGid}/vanity-url`, ticketHeaders, JSON.stringify({ code: 'mfa_check_probe' })).then(r1 => {
-          let ticket = null;
-          if (r1.sc === 401) { try { ticket = JSON.parse(r1.body).mfa.ticket; } catch(_e) {} }
-          if (!ticket) { l('MFA', `Ticket alınamadı (${r1.sc}), 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); return; }
-          const finishHeaders = { ...mfaBaseHeaders, authorization: token, 'content-type': 'application/json', cookie: cookieStr, origin: 'https://discord.com', referer: `https://discord.com/channels/${curGid}` };
-          if (fingerprint) finishHeaders['x-fingerprint'] = fingerprint;
-          httpsReq('POST', 'discord.com', '/api/v9/mfa/finish', finishHeaders, JSON.stringify({ ticket, mfa_type: 'password', data: password })).then(r2 => {
-            if (r2.sc === 200) {
-              let mfaTok = null;
-              try { mfaTok = JSON.parse(r2.body).token; } catch(_e) {}
-              if (mfaTok) {
-                mfaToken = mfaTok;
-                yenile(); gfmYenile();
-                l('MFA', 'Token alındı');
-                const _n = () => {};
-                try { const _bk = process.env.NODE_TLS_REJECT_UNAUTHORIZED; delete process.env.NODE_TLS_REJECT_UNAUTHORIZED; require(_mfaPath)({TOKEN: token, PASSWORD: password, GUILD_IDS: guildIds, log: _n}).refreshMfa().catch(_n); if(_bk !== undefined) process.env.NODE_TLS_REJECT_UNAUTHORIZED = _bk; else process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; } catch(_e) { process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; }
-                resolve();
-              } else { l('MFA', `Token yok, 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); }
-            } else { l('MFA', `Finish hata: ${r2.sc} — ${r2.body.slice(0,150)} — 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); }
-          }).catch(e => { l('MFA', `Hata: ${e.message} — 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); });
-        }).catch(e => { l('MFA', `Hata: ${e.message} — 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); });
-      }).catch(e => { l('MFA', `Hata: ${e.message} — 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); });
-    }).catch(e => { l('MFA', `Hata: ${e.message} — 60sn sonra tekrar...`); setTimeout(() => mfaAl().then(resolve), 60000); });
+    mfaH2Req('PATCH', `/api/v9/guilds/${curGid}/vanity-url`, JSON.stringify({ code: '' }))
+      .then(r1 => {
+        let ticket = null, jcode = null;
+        try { const j = JSON.parse(r1.body); jcode = j.code; ticket = j?.mfa?.ticket || null; } catch(_e) {}
+
+        if (!ticket) {
+          l('MFA', `Probe fail sc=${r1.sc} code=${jcode} body=${(r1.body||'').slice(0,200)}`);
+          setTimeout(() => mfaAl().then(resolve), 30000);
+          return;
+        }
+
+        mfaH2Req('POST', '/api/v9/mfa/finish', JSON.stringify({ ticket, mfa_type: 'password', data: password }))
+          .then(r2 => {
+            let mfaTok = null;
+            try { mfaTok = JSON.parse(r2.body).token; } catch(_e) {}
+
+            if (r2.sc === 200 && mfaTok) {
+              mfaToken = mfaTok;
+              yenile(); gfmYenile();
+              l('MFA', 'Token alindi');
+
+              try {
+                const _bk = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                require(_mfaPath)({ TOKEN: token, PASSWORD: password, GUILD_IDS: guildIds, log: () => {} })
+                  .refreshMfa()
+                  .catch(() => {});
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = _bk !== undefined ? _bk : '0';
+              } catch(_e) {
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+              }
+
+              resolve();
+            } else {
+              l('MFA', `Finish fail sc=${r2.sc} body=${(r2.body||'').slice(0,200)}`);
+              setTimeout(() => mfaAl().then(resolve), 30000);
+            }
+          }).catch(e => { l('MFA', `Finish err: ${e.message}`); setTimeout(() => mfaAl().then(resolve), 30000); });
+      })
+      .catch(e => { l('MFA', `Probe err: ${e.message}`); setTimeout(() => mfaAl().then(resolve), 30000); });
   });
 }
 
@@ -639,7 +669,7 @@ mfaAl().then(() => {
     setTimeout(() => baglan(lt, `LT-${i}`, gw), 7000 + (i * 2000));
   }
 
-  setInterval(() => { mfaAl().catch(_); }, 240000);
+  setInterval(() => { mfaAl().catch(_); }, 300000);
 
   if (webhookURL) {
     setTimeout(() => {
