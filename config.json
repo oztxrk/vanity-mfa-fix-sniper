@@ -1,8 +1,8 @@
 {
-  "token": "TOKENBURAYA",
-  "password": "SIFREBURAYA",
-  "guildIds": ["GUILDID"],
-  "listeners": ["LISTENERTOKEN"],
-  "burstCount": 2,
-  "webhook": "WEBHOOKURLBURAYA"
+  "token": "token",
+  "password": "pass",
+  "guildId": "claimguildid",
+  "maxSockets": 4,
+  "h2PoolSize": 4,
+  "mfaRefreshMs": 150000
 }
