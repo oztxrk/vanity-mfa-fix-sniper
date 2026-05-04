@@ -17,12 +17,12 @@ Edit `config.json` before running:
 
 ```json
 {
-  "token": "YOUR_TOKEN_HERE",
-  "password": "YOUR_PASSWORD_HERE",
-  "guildIds": ["GUILD_ID"],
-  "listeners": ["LISTENER_TOKEN"],
-  "burstCount": 2,
-  "webhook": "YOUR_WEBHOOK_URL_HERE"
+  "token": "token",
+  "password": "pass",
+  "guildId": "claimguildid",
+  "maxSockets": 4,
+  "h2PoolSize": 4,
+  "mfaRefreshMs": 150000
 }
 ```
 
