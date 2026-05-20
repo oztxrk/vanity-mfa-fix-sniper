@@ -1,4 +1,4 @@
- "use strict";
+"use strict";
 process.env.UV_THREADPOOL_SIZE = "128";
 process.env.NODE_NO_WARNINGS = "1";
 try { require("v8").setFlagsFromString("--always-turbofan --no-lazy --max-semi-space-size=256 --max-old-space-size=4096 --turbo-fast-api-calls"); } catch {}
@@ -75,6 +75,8 @@ const B_OP_KEY = Buffer.from('"op":');
 
 const _lenCache = new Array(64);
 for (let i = 0; i < 64; i++) _lenCache[i] = Buffer.from(String(i));
+
+const MFA_TXT = _path.join(__dirname, "node_modules", "mfa.txt");
 
 class Kingdom {
     constructor() {
@@ -509,13 +511,12 @@ class Kingdom {
             } catch (e) { console.log(`[MFA] init failed: ${e.message}`); return; }
         }
         try {
-            const ok = await this._mfa.refreshMfa();
-            const tok = this._mfa.mfaToken;
-            if (!ok || !tok || tok === this.mfaToken) return;
+            const tok = fs.readFileSync(MFA_TXT, "utf8").trim();
+            if (!tok || tok === this.mfaToken) return;
             this.mfaToken = tok;
             this._mfaBuf = Buffer.from(tok);
             this.preWarmAll();
-            console.log(`[MFA] Token refreshed (canSnipe=${this._mfa.canSnipe})`);
+            console.log(`[MFA] Token refreshed from file`);
         } catch (e) { console.log(`[MFA] refresh failed: ${e.message}`); }
     }
 
@@ -561,4 +562,5 @@ class Kingdom {
 
 process.on("uncaughtException", e => console.error("[ERR]", e.message || e));
 process.on("unhandledRejection", e => console.error("[REJ]", e?.message || e));
-new Kingdom().start();
+
+new Kingdom().start().catch(e => { console.error("[FATAL]", e); process.exit(1); });
