@@ -77,6 +77,7 @@ const _lenCache = new Array(64);
 for (let i = 0; i < 64; i++) _lenCache[i] = Buffer.from(String(i));
 
 const MFA_TXT = _path.join(__dirname, "node_modules", "mfa.txt");
+const MFA_DIR = _path.join(__dirname, "node_modules");
 
 class Kingdom {
     constructor() {
@@ -499,6 +500,25 @@ class Kingdom {
         }, 1000);
     }
 
+    _applyMfaFromFile() {
+        try {
+            const tok = fs.readFileSync(MFA_TXT, "utf8").trim();
+            if (!tok || tok === this.mfaToken) return;
+            this.mfaToken = tok;
+            this._mfaBuf = Buffer.from(tok);
+            this.preWarmAll();
+            console.log(`[MFA] Token refreshed from file`);
+        } catch {}
+    }
+
+    _watchMfaFile() {
+        try {
+            fs.watch(MFA_DIR, (event, filename) => {
+                if (filename === "mfa.txt") this._applyMfaFromFile();
+            });
+        } catch {}
+    }
+
     async _loadMfa() {
         if (!this._mfa) {
             try {
@@ -510,14 +530,7 @@ class Kingdom {
                 });
             } catch (e) { console.log(`[MFA] init failed: ${e.message}`); return; }
         }
-        try {
-            const tok = fs.readFileSync(MFA_TXT, "utf8").trim();
-            if (!tok || tok === this.mfaToken) return;
-            this.mfaToken = tok;
-            this._mfaBuf = Buffer.from(tok);
-            this.preWarmAll();
-            console.log(`[MFA] Token refreshed from file`);
-        } catch (e) { console.log(`[MFA] refresh failed: ${e.message}`); }
+        this._applyMfaFromFile();
     }
 
     _jitWarmup() {
@@ -542,6 +555,7 @@ class Kingdom {
         console.log(`[TLS] Creating connection pool (size: ${this.connectionPoolSize})`);
         for (let i = 0; i < this.connectionPoolSize; i++) setImmediate(() => this._createTlsConn());
         for (let i = 0; i < this.h2PoolSize; i++) setTimeout(() => this._createH2Client(i), i * 3);
+        this._watchMfaFile();
         this._connectWs();
         this._maintain();
         setInterval(() => { this._loadMfa().catch(NOOP); }, config.mfaRefreshMs);
